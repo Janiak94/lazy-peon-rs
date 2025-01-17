@@ -1,15 +1,23 @@
 use clap::Parser;
-use rand::SeedableRng;
-
-mod backend;
-mod generator;
-mod keyboard;
-mod mouse;
-mod types;
+use lazy_peon_rs::{backend, generator, keyboard, mouse};
+use rand::{Rng, SeedableRng};
 
 async fn run_async<T: FnMut() -> Result<(), Box<dyn std::error::Error>>>(mut f: T, period_ms: u64) {
     loop {
         f().unwrap();
+        tokio::time::sleep(tokio::time::Duration::from_millis(period_ms)).await;
+    }
+}
+
+async fn run_async_keyboard<T: FnMut() -> Result<(), Box<dyn std::error::Error>>>(
+    mut f: T,
+    min_period_ms: u64,
+    max_period_ms: u64,
+) {
+    let mut rng = rand::rngs::StdRng::from_entropy();
+    loop {
+        f().unwrap();
+        let period_ms = rng.gen_range(min_period_ms..max_period_ms);
         tokio::time::sleep(tokio::time::Duration::from_millis(period_ms)).await;
     }
 }
@@ -22,9 +30,6 @@ struct Args {
 
     #[arg(short, long, default_value_t = 60.0)]
     updates_per_sec: f32,
-
-    #[arg(short, long, default_value_t = 5.0)]
-    keyboard_input_period: f32,
 
     #[arg(short, long, value_enum, default_value_t = MouseBackendType::Enigo)]
     mouse_backend: MouseBackendType,
@@ -79,16 +84,20 @@ async fn main() {
     let key_generator = generator::RandomKeyGenerator::new(rng);
     let mut keyboard = keyboard::KeyboardAgent::new(keyboard_backend, key_generator);
 
+    // Keyboard periods
+    let min_period_ms = 100;
+    let max_period_ms = 1000;
+
     tracing::info!("Starting loop");
     tokio::select! {
         v = run_async(move || {
             mouse.update();
             Ok(())
         }, mouse_update_freq as u64) => v,
-        v = run_async(move || {
+        v = run_async_keyboard(move || {
             keyboard.update();
             Ok(())
-        }, 1000 * args.keyboard_input_period as u64) => v,
+        }, min_period_ms, max_period_ms) => v,
     }
 }
 
