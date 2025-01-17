@@ -12,20 +12,20 @@ mod mouse {
         fn read_mouse_position(&self) -> na::Point2<f32>;
     }
 
-    pub(crate) struct EnigoMouseAdapter {
+    pub(crate) struct EnigoMouseBackend {
         backend: enigo::Enigo,
     }
 
-    impl EnigoMouseAdapter {
+    impl EnigoMouseBackend {
         pub fn new() -> Self {
-            EnigoMouseAdapter {
+            EnigoMouseBackend {
                 backend: enigo::Enigo::new(&enigo::Settings::default())
                     .expect("could not create enigo"),
             }
         }
     }
 
-    impl MouseBackend for EnigoMouseAdapter {
+    impl MouseBackend for EnigoMouseBackend {
         fn move_mouse(&mut self, pos: na::Point2<f32>) {
             self.backend
                 .move_mouse(pos.x as i32, pos.y as i32, enigo::Coordinate::Abs)
@@ -41,27 +41,27 @@ mod mouse {
         }
     }
 
-    impl core::fmt::Display for EnigoMouseAdapter {
+    impl core::fmt::Display for EnigoMouseBackend {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             write!(f, "enigo")
         }
     }
 
     #[allow(unused)]
-    struct MouseRsMouseAdapter {
+    struct MouseRsMouseBackend {
         backend: mouse_rs::Mouse,
     }
 
-    impl MouseRsMouseAdapter {
+    impl MouseRsMouseBackend {
         #[allow(unused)]
         pub fn new() -> Self {
-            MouseRsMouseAdapter {
+            MouseRsMouseBackend {
                 backend: mouse_rs::Mouse::new(),
             }
         }
     }
 
-    impl MouseBackend for MouseRsMouseAdapter {
+    impl MouseBackend for MouseRsMouseBackend {
         fn move_mouse(&mut self, pos: na::Point2<f32>) {
             self.backend
                 .move_to(pos.x as i32, pos.y as i32)
@@ -77,7 +77,7 @@ mod mouse {
         }
     }
 
-    impl core::fmt::Display for MouseRsMouseAdapter {
+    impl core::fmt::Display for MouseRsMouseBackend {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             write!(f, "mouse_rs")
         }
@@ -168,20 +168,20 @@ mod keyboard {
         fn press_key(&mut self, key: char);
     }
 
-    pub struct EnigoKeyboardAdapter {
+    pub struct EnigoKeyboardBackend {
         backend: enigo::Enigo,
     }
 
-    impl EnigoKeyboardAdapter {
+    impl EnigoKeyboardBackend {
         pub fn new() -> Self {
-            EnigoKeyboardAdapter {
+            EnigoKeyboardBackend {
                 backend: enigo::Enigo::new(&enigo::Settings::default())
                     .expect("could not create enigo"),
             }
         }
     }
 
-    impl KeyboardBackend for EnigoKeyboardAdapter {
+    impl KeyboardBackend for EnigoKeyboardBackend {
         fn press_key(&mut self, key: char) {
             self.backend
                 .key(enigo::Key::Unicode(key), enigo::Direction::Click)
@@ -320,7 +320,7 @@ async fn main() {
 
     let rng = rand::rngs::StdRng::from_entropy();
     let step_generator = random::RandomWalk::new(args.step_size_px, rng);
-    let mouse_backend = mouse::EnigoMouseAdapter::new();
+    let mouse_backend = mouse::EnigoMouseBackend::new();
 
     tracing::info!("Mouse backend: {}", mouse_backend);
 
@@ -331,7 +331,7 @@ async fn main() {
     tracing::info!("Mouse step size: {} px", args.step_size_px);
 
     let rng = rand::rngs::StdRng::from_entropy();
-    let keyboard_backend = keyboard::EnigoKeyboardAdapter::new();
+    let keyboard_backend = keyboard::EnigoKeyboardBackend::new();
     let key_generator = random::RandomKeyGenerator::new(rng);
     let mut keyboard = keyboard::RngKeyboard::new(keyboard_backend, key_generator);
 
