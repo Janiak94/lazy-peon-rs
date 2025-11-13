@@ -2,7 +2,7 @@ use clap::Parser;
 use lazy_peon_rs::{
     backend, generator, keyboard, mouse, time::interval, time::random_interval, time::Duration,
 };
-use rand::{Rng, SeedableRng};
+use rand::SeedableRng;
 
 #[derive(Parser, Debug)]
 #[command(name = "lazy-peon-rs", about = "Lazy peon")]
