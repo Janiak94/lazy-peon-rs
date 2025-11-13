@@ -1,26 +1,8 @@
 use clap::Parser;
-use lazy_peon_rs::{backend, generator, keyboard, mouse};
+use lazy_peon_rs::{
+    backend, generator, keyboard, mouse, time::interval, time::random_interval, time::Duration,
+};
 use rand::{Rng, SeedableRng};
-
-async fn run_async<T: FnMut() -> Result<(), Box<dyn std::error::Error>>>(mut f: T, period_ms: u64) {
-    loop {
-        f().unwrap();
-        tokio::time::sleep(tokio::time::Duration::from_millis(period_ms)).await;
-    }
-}
-
-async fn run_async_keyboard<T: FnMut() -> Result<(), Box<dyn std::error::Error>>>(
-    mut f: T,
-    min_period_ms: u64,
-    max_period_ms: u64,
-) {
-    let mut rng = rand::rngs::StdRng::from_entropy();
-    loop {
-        f().unwrap();
-        let period_ms = rng.gen_range(min_period_ms..max_period_ms);
-        tokio::time::sleep(tokio::time::Duration::from_millis(period_ms)).await;
-    }
-}
 
 #[derive(Parser, Debug)]
 #[command(name = "lazy-peon-rs", about = "Lazy peon")]
@@ -33,6 +15,9 @@ struct Args {
 
     #[arg(short, long, value_enum, default_value_t = MouseBackendType::Enigo)]
     mouse_backend: MouseBackendType,
+
+    #[arg(short, long, default_value_t = false)]
+    keyboard: bool,
 
     #[arg(short, long, value_enum, default_value_t = LogLevel::Info)]
     log_level: LogLevel,
@@ -59,6 +44,11 @@ impl From<LogLevel> for tracing::Level {
     }
 }
 
+enum Event {
+    Mouse,
+    Keyboard,
+}
+
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
@@ -74,7 +64,8 @@ async fn main() {
     tracing::info!("Mouse backend: {}", mouse_backend);
 
     let mut mouse = mouse::MouseAgent::new(mouse_backend, step_generator);
-    let mouse_update_freq = 1000.0 / args.updates_per_sec;
+    let mouse_update_freq = 1.0 / args.updates_per_sec;
+    let mut mouse_interval = interval(Duration::from_secs_f32(mouse_update_freq));
 
     tracing::info!("Mouse update frequency: {} ms", mouse_update_freq);
     tracing::info!("Mouse step size: {} px", args.step_size_px);
@@ -85,19 +76,21 @@ async fn main() {
     let mut keyboard = keyboard::KeyboardAgent::new(keyboard_backend, key_generator);
 
     // Keyboard periods
-    let min_period_ms = 100;
-    let max_period_ms = 1000;
+    let min_period = 0.1;
+    let max_period = 1.0;
+    let mut keyboard_interval = random_interval(min_period, max_period);
 
     tracing::info!("Starting loop");
-    tokio::select! {
-        v = run_async(move || {
-            mouse.update();
-            Ok(())
-        }, mouse_update_freq as u64) => v,
-        v = run_async_keyboard(move || {
-            keyboard.update();
-            Ok(())
-        }, min_period_ms, max_period_ms) => v,
+    loop {
+        let event = tokio::select! {
+            _ = keyboard_interval.tick() => Event::Keyboard,
+            _ = mouse_interval.tick() => Event::Mouse,
+        };
+        match event {
+            Event::Keyboard if args.keyboard => keyboard.update(),
+            Event::Mouse => mouse.update(),
+            _ => {}
+        }
     }
 }
 
